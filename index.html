@@ -18,28 +18,28 @@
             background: var(--bg);
             color: var(--text);
             margin: 0;
-            padding: 16px;
+            padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
+            gap: 12px;
             max-width: 600px;
             margin-left: auto;
             margin-right: auto;
         }
-        h1 { font-size: 1.2rem; margin: 0; text-align: center; }
+        h1 { font-size: 1.1rem; margin: 0; text-align: center; }
         .card {
             background: var(--card);
             border-radius: 12px;
-            padding: 16px;
+            padding: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
         }
-        .card h3 { font-size: 0.9rem; margin: 0; color: #475569; }
+        .card h3 { font-size: 0.85rem; margin: 0; color: #475569; }
         .row { display: flex; gap: 8px; align-items: center; }
         button {
-            padding: 12px 16px;
+            padding: 10px 14px;
             border: none;
             border-radius: 8px;
             background: var(--primary);
@@ -62,15 +62,16 @@
             100% { opacity: 1; }
         }
         input[type="password"], input[type="text"], select {
-            padding: 10px;
+            padding: 8px;
             border: 1px solid var(--border);
             border-radius: 8px;
             font-size: 0.9rem;
             flex: 1;
         }
+        /* 手書きキャンバスの高さを拡大（例: 220px） */
         canvas {
             width: 100%;
-            height: 130px;
+            height: 220px;
             border: 2px dashed var(--border);
             border-radius: 8px;
             touch-action: none;
@@ -79,36 +80,36 @@
         }
         textarea {
             width: 100%;
-            height: 130px;
-            padding: 12px;
+            height: 110px;
+            padding: 10px;
             border: 1px solid var(--border);
             border-radius: 8px;
             font-size: 1rem;
             box-sizing: border-box;
             resize: vertical;
         }
-        .status { font-size: 0.85rem; color: #64748b; text-align: center; }
-        .setting-label { font-size: 0.8rem; color: #64748b; margin-bottom: -4px; }
+        .status { font-size: 0.8rem; color: #64748b; text-align: center; }
+        .setting-label { font-size: 0.75rem; color: #64748b; margin-bottom: -2px; }
     </style>
 </head>
 <body>
 
     <h1>AI手書き・音声マルチメモ</h1>
 
-    <!-- 設定カード（APIキー & モデル名） -->
-    <div class="card" style="padding: 12px 16px;">
+    <!-- 設定カード -->
+    <div class="card" style="padding: 10px 12px;">
         <div class="setting-label">Gemini APIキー</div>
         <div class="row">
             <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
         </div>
         <div class="setting-label">使用するAIモデル名</div>
         <div class="row">
-            <input type="text" id="modelInput" value="gemini-3.5-flash-lite" placeholder="例: gemini-3.5-flash-lite">
+            <input type="text" id="modelInput" value="gemini-3.5-flash-lite" placeholder="gemini-3.5-flash-lite">
             <button class="secondary" id="saveConfigBtn" style="flex: 0.4;">保存</button>
         </div>
     </div>
 
-    <!-- 入力セクション（音声・手書き） -->
+    <!-- 入力セクション（手書きエリア拡大） -->
     <div class="card">
         <h3>1. 入力する</h3>
         <div class="row">
@@ -139,16 +140,14 @@
         </div>
     </div>
 
-    <div class="status" id="statusMsg">準備完了。設定を確認してご利用ください。</div>
+    <div class="status" id="statusMsg">準備完了。</div>
 
     <script>
-        // --- 設定管理（APIキー & モデル名） ---
         const apiKeyInput = document.getElementById('apiKeyInput');
         const modelInput = document.getElementById('modelInput');
         const saveConfigBtn = document.getElementById('saveConfigBtn');
         const statusMsg = document.getElementById('statusMsg');
 
-        // 保存された値の復元
         const savedKey = localStorage.getItem('gemini_api_key');
         const savedModel = localStorage.getItem('gemini_model');
 
@@ -162,7 +161,7 @@
             if (key) {
                 localStorage.setItem('gemini_api_key', key);
                 localStorage.setItem('gemini_model', model);
-                statusMsg.textContent = '設定（APIキー・モデル）を保存しました。';
+                statusMsg.textContent = '設定を保存しました。';
             } else {
                 alert('APIキーを入力してください。');
             }
@@ -176,7 +175,7 @@
             return modelInput.value.trim() || localStorage.getItem('gemini_model') || 'gemini-3.5-flash-lite';
         }
 
-        // --- 音声録音 & AI文字起こし ---
+        // 音声録音
         const micBtn = document.getElementById('micBtn');
         let mediaRecorder;
         let audioChunks = [];
@@ -185,63 +184,44 @@
         micBtn.addEventListener('click', async () => {
             const apiKey = getApiKey();
             const modelName = getModelName();
-            if (!apiKey) {
-                alert('先にGemini APIキーを入力・保存してください。');
-                return;
-            }
+            if (!apiKey) { alert('APIキーを入力してください。'); return; }
 
             if (!isRecording) {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
-
-                    mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) audioChunks.push(event.data);
-                    };
-
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
                     mediaRecorder.onstop = async () => {
-                        statusMsg.textContent = '音声をAIで文字起こし中...';
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        
+                        statusMsg.textContent = '音声文字起こし中...';
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
                         const reader = new FileReader();
-                        reader.readAsDataURL(audioBlob);
+                        reader.readAsDataURL(blob);
                         reader.onloadend = async () => {
                             const base64Audio = reader.result.split(',')[1];
                             try {
-                                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+                                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        contents: [{
-                                            parts: [
-                                                { text: "この音声に含まれる日本語を正確に文字起こししてください。余計な解説は一切含めず、テキストのみを出力してください。" },
-                                                { inline_data: { mime_type: "audio/webm", data: base64Audio } }
-                                            ]
-                                        }]
-                                    })
+                                    body: JSON.stringify({ contents: [{ parts: [
+                                        { text: "この音声を正確に文字起こししてください。テキストのみ出力してください。" },
+                                        { inline_data: { mime_type: "audio/webm", data: base64Audio } }
+                                    ]}] })
                                 });
-                                const data = await response.json();
+                                const data = await res.json();
                                 if (data.error) throw new Error(data.error.message);
-
                                 const text = data.candidates[0].content.parts[0].text.trim();
-                                const outputArea = document.getElementById('outputArea');
-                                outputArea.value += (outputArea.value ? "\n" : "") + text;
-                                statusMsg.textContent = '音声の文字起こしを追加しました。';
-                            } catch (err) {
-                                statusMsg.textContent = '音声認識エラー: ' + err.message;
-                            }
+                                document.getElementById('outputArea').value += (document.getElementById('outputArea').value ? "\n" : "") + text;
+                                statusMsg.textContent = '音声を追加しました。';
+                            } catch (err) { statusMsg.textContent = 'エラー: ' + err.message; }
                         };
                     };
-
                     mediaRecorder.start();
                     isRecording = true;
-                    micBtn.textContent = '⏹ 録音停止（話した後にタップ）';
+                    micBtn.textContent = '⏹ 録音停止（タップして終了）';
                     micBtn.classList.add('recording');
-                    statusMsg.textContent = '録音中...お話しください。';
-                } catch (err) {
-                    alert('マイクへのアクセスが拒否されたか、対応していない環境です: ' + err.message);
-                }
+                    statusMsg.textContent = '録音中...';
+                } catch (err) { alert('マイクエラー: ' + err.message); }
             } else {
                 mediaRecorder.stop();
                 isRecording = false;
@@ -250,11 +230,11 @@
             }
         });
 
-        // --- 手書きキャンバス実装 ---
+        // 手書きキャンバス（高さ拡大）
         const canvas = document.getElementById('paintCanvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = canvas.parentElement.clientWidth - 32;
-        canvas.height = 130;
+        canvas.width = canvas.parentElement.clientWidth - 24;
+        canvas.height = 220; // 高さを220pxに拡大
         ctx.fillStyle = "#ffffff";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -285,7 +265,7 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
         });
 
-        // 手書きOCR（AIマルチモーダル）
+        // 手書きOCR
         document.getElementById('ocrSendBtn').addEventListener('click', async () => {
             const apiKey = getApiKey();
             const modelName = getModelName();
@@ -295,77 +275,59 @@
             const base64Image = canvas.toDataURL('image/png').split(',')[1];
 
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [
-                                { text: "この画像に書かれている手書きの日本語の文字や数字を正確に読み取り、テキストのみを出力してください。" },
-                                { inline_data: { mime_type: "image/png", data: base64Image } }
-                            ]
-                        }]
-                    })
+                    body: JSON.stringify({ contents: [{ parts: [
+                        { text: "この画像に書かれている手書きの日本語を正確に読み取り、テキストのみを出力してください。" },
+                        { inline_data: { mime_type: "image/png", data: base64Image } }
+                    ]}] })
                 });
-                const data = await response.json();
+                const data = await res.json();
                 if (data.error) throw new Error(data.error.message);
-
-                const recognizedText = data.candidates[0].content.parts[0].text.trim();
-                const outputArea = document.getElementById('outputArea');
-                outputArea.value += (outputArea.value ? "\n" : "") + recognizedText;
-                
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                const text = data.candidates[0].content.parts[0].text.trim();
+                const output = document.getElementById('outputArea');
+                output.value += (output.value ? "\n" : "") + text;
+                ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
                 statusMsg.textContent = '手書き文字を追加しました。';
-            } catch (error) {
-                statusMsg.textContent = 'OCRエラー: ' + error.message;
-            }
+            } catch (err) { statusMsg.textContent = 'OCRエラー: ' + err.message; }
         });
 
-        // --- AI文章整形 ---
+        // AI整形
         document.getElementById('aiRefineBtn').addEventListener('click', async () => {
             const apiKey = getApiKey();
             const modelName = getModelName();
-            const outputArea = document.getElementById('outputArea');
-            const rawText = outputArea.value.trim();
+            const output = document.getElementById('outputArea');
+            const raw = output.value.trim();
             const tone = document.getElementById('toneSelect').value;
 
             if (!apiKey) { alert('APIキーを入力してください。'); return; }
-            if (!rawText) { alert('整形するテキストがありません。'); return; }
+            if (!raw) { alert('整形するテキストがありません。'); return; }
 
             statusMsg.textContent = 'AIが文章を整形中...';
-
             let tonePrompt = "自然で丁寧な日本語に整えてください。";
             if (tone === 'business') tonePrompt = "丁寧なビジネスメール形式（宛名、挨拶、本文、結び）に整えてください。";
             else if (tone === 'chat') tonePrompt = "チャットツール向けに簡潔で読みやすいトーンに整えてください。";
             else if (tone === 'bullet') tonePrompt = "要点を整理し、箇条書きのメモ・議事録形式に構造化してください。";
 
-            const prompt = `以下のメモを読みやすく整形してください。余計な挨拶等は一切含めず、結果のみを出力してください。\n\n【指定フォーマット】\n${tonePrompt}\n\n【入力テキスト】\n${rawText}`;
+            const prompt = `以下のメモを読みやすく整形してください。結果のみを出力してください。\n\n【指定フォーマット】\n${tonePrompt}\n\n【入力テキスト】\n${raw}`;
 
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }]
-                    })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
                 });
-                const data = await response.json();
+                const data = await res.json();
                 if (data.error) throw new Error(data.error.message);
-
-                outputArea.value = data.candidates[0].content.parts[0].text.trim();
-                statusMsg.textContent = '文章の整形が完了しました！';
-            } catch (error) {
-                statusMsg.textContent = '整形エラー: ' + error.message;
-            }
+                output.value = data.candidates[0].content.parts[0].text.trim();
+                statusMsg.textContent = '整形完了！';
+            } catch (err) { statusMsg.textContent = '整形エラー: ' + err.message; }
         });
 
-        // --- コピー・全消去 ---
         document.getElementById('copyBtn').addEventListener('click', () => {
-            const outputArea = document.getElementById('outputArea');
-            navigator.clipboard.writeText(outputArea.value).then(() => {
-                statusMsg.textContent = 'クリップボードにコピーしました！';
-            });
+            navigator.clipboard.writeText(document.getElementById('outputArea').value);
+            statusMsg.textContent = 'コピーしました！';
         });
 
         document.getElementById('clearAllBtn').addEventListener('click', () => {
