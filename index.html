@@ -22,12 +22,28 @@
             padding: 12px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
             max-width: 600px;
             margin-left: auto;
             margin-right: auto;
         }
-        h1 { font-size: 1.1rem; margin: 0; text-align: center; }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 2px;
+        }
+        h1 { font-size: 1.1rem; margin: 0; }
+        .toggle-btn {
+            flex: none;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            background: #e2e8f0;
+            color: #334155;
+        }
+        .toggle-btn:hover:not(:disabled) {
+            background: #cbd5e1;
+        }
         .card {
             background: var(--card);
             border-radius: 12px;
@@ -36,6 +52,9 @@
             display: flex;
             flex-direction: column;
             gap: 8px;
+        }
+        .card.hidden {
+            display: none;
         }
         .card h3 { font-size: 0.85rem; margin: 0; color: #475569; }
         .row { display: flex; gap: 8px; align-items: center; }
@@ -73,7 +92,7 @@
         }
         canvas {
             width: 100%;
-            height: 220px;
+            height: 280px; /* 220pxから拡大 */
             border: 2px dashed var(--border);
             border-radius: 8px;
             touch-action: none;
@@ -83,7 +102,7 @@
         }
         textarea {
             width: 100%;
-            height: 110px;
+            height: 160px; /* 110pxから拡大 */
             padding: 10px;
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -97,10 +116,13 @@
 </head>
 <body>
 
-    <h1>手書き・音声メモ</h1>
+    <div class="header">
+        <h1>手書き・音声メモ</h1>
+        <button id="toggleSettingsBtn" class="toggle-btn">⚙️ 設定</button>
+    </div>
 
-    <!-- 設定カード -->
-    <div class="card" style="padding: 10px 12px;">
+    <!-- 設定カード（初期状態は非表示） -->
+    <div class="card hidden" id="settingsCard" style="padding: 10px 12px;">
         <div class="setting-label">Gemini APIキー</div>
         <div class="row">
             <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
@@ -152,6 +174,8 @@
         const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
         const MAX_AUDIO_BYTES = 14 * 1024 * 1024; // base64化後に約20MBの上限を超えないための目安
 
+        const settingsCard = document.getElementById('settingsCard');
+        const toggleSettingsBtn = document.getElementById('toggleSettingsBtn');
         const apiKeyInput = document.getElementById('apiKeyInput');
         const modelInput = document.getElementById('modelInput');
         const saveConfigBtn = document.getElementById('saveConfigBtn');
@@ -163,13 +187,36 @@
         const undoBtn = document.getElementById('undoBtn');
         const copyBtn = document.getElementById('copyBtn');
 
-        // ---------- 設定 ----------
+        // ---------- 設定の開閉 ----------
+        function setSettingsVisible(visible) {
+            if (visible) {
+                settingsCard.classList.remove('hidden');
+                toggleSettingsBtn.textContent = '✕ 閉じる';
+            } else {
+                settingsCard.classList.add('hidden');
+                toggleSettingsBtn.textContent = '⚙️ 設定';
+            }
+        }
+
+        toggleSettingsBtn.addEventListener('click', () => {
+            const isHidden = settingsCard.classList.contains('hidden');
+            setSettingsVisible(isHidden);
+        });
+
+        // ---------- 設定の読み込み・保存 ----------
         try {
             const savedKey = localStorage.getItem('gemini_api_key');
             const savedModel = localStorage.getItem('gemini_model');
-            if (savedKey) apiKeyInput.value = savedKey;
+            if (savedKey) {
+                apiKeyInput.value = savedKey;
+            } else {
+                // 未設定の場合のみ初回表示で開く
+                setSettingsVisible(true);
+            }
             if (savedModel) modelInput.value = savedModel;
-        } catch (e) { /* localStorageが使えない環境では無視 */ }
+        } catch (e) {
+            setSettingsVisible(true);
+        }
 
         saveConfigBtn.addEventListener('click', () => {
             const key = apiKeyInput.value.trim();
@@ -182,6 +229,7 @@
                 localStorage.setItem('gemini_api_key', key);
                 localStorage.setItem('gemini_model', model);
                 statusMsg.textContent = '設定を保存しました。';
+                setSettingsVisible(false); // 保存後に自動で閉じる
             } catch (e) {
                 statusMsg.textContent = '設定を保存できませんでした。';
             }
@@ -266,7 +314,11 @@
             if (processing) return;
 
             if (!isRecording) {
-                if (!getApiKey()) { alert('APIキーを入力してください。'); return; }
+                if (!getApiKey()) {
+                    setSettingsVisible(true);
+                    alert('APIキーを入力してください。');
+                    return;
+                }
                 try {
                     mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                     mediaRecorder = new MediaRecorder(mediaStream);
@@ -325,7 +377,7 @@
         const canvas = document.getElementById('paintCanvas');
         const ctx = canvas.getContext('2d');
         const dpr = window.devicePixelRatio || 1;
-        const CANVAS_CSS_HEIGHT = 220;
+        const CANVAS_CSS_HEIGHT = 280; // CSSのheightと一致させる
 
         // 表示サイズ × 画面の解像度で描画サイズを決める（Retinaでもぼやけない）
         canvas.width = Math.round(canvas.getBoundingClientRect().width * dpr);
@@ -385,7 +437,11 @@
         // ---------- 手書きOCR ----------
         ocrSendBtn.addEventListener('click', async () => {
             if (processing) return;
-            if (!getApiKey()) { alert('APIキーを入力してください。'); return; }
+            if (!getApiKey()) {
+                setSettingsVisible(true);
+                alert('APIキーを入力してください。');
+                return;
+            }
             if (!hasInk) { alert('手書きの内容がありません。'); return; }
 
             setProcessing(true);
@@ -414,7 +470,11 @@
             const raw = outputArea.value.trim();
             const tone = document.getElementById('toneSelect').value;
 
-            if (!getApiKey()) { alert('APIキーを入力してください。'); return; }
+            if (!getApiKey()) {
+                setSettingsVisible(true);
+                alert('APIキーを入力してください。');
+                return;
+            }
             if (!raw) { alert('整形するテキストがありません。'); return; }
 
             setProcessing(true);
